@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.0/react.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.0/react-dom.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.6.15/browser.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-button.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/google-code-prettify/prettify.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-alert.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-modal.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-dropdown.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-scrollspy.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-tab.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-tooltip.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-popover.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-carousel.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-typeahead.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/bootstrap-affix.js"></script>
+	<script src="http://bootstrap-ru.com/assets/js/holder/holder.js"></script>
+
+    
+    <style type="text/css">
+
+  		body{
+  			padding-top: 5px;
+  		}
+
+    	#filters{
+    		padding: 0 25px !important;
+    		position: fixed;
+    		left: 0px;
+    		top: 0px;
+    	}
+
+    	#features{
+    		position: fixed;    		
+    		background-color: #337ab7;
+    		padding: 5px; 	
+    	}
+
+    	#tasks{
+    		margin-top: 50px;
+    	}
+
+    	.actButtons{
+    		color: #fff;
+    	}
+
+    	.actButtons:hover{
+    		cursor: pointer;
+    		text-decoration: underline;
+    	}
+
+    	.glyphicon:hover{
+    		cursor: pointer;
+    	}
+   
+    	textarea{
+    		resize: none;
+    	}
+
+    	.btnBlue{
+    		background-color: #337ab7 !important;
+    		color: #fff;
+    	}
+
+	   .btn-btnBlue:visited,.btnBlue:focus, .btnBlue:active{ 
+		   	outline: none !important;
+		   	background-color:#337ab7 !important;
+		   	color: #fff !important;
+		}
+
+		.btnBlue:hover{
+			background-color: #204d74 !important;
+			color: #fff !important;
+		}
+
+		.accordion-group:nth-child(even){
+			background-color: #f5f5f5;
+		}
+
+		.accordion-group{
+			padding: 5px;
+			border-bottom: 1px solid #d3d3d3;
+		}
+
+		.accordion-heading{
+			font-weight: bold;		
+		}
+
+		.successTask{
+			background-color: #70db70 !important;
+		}
+
+		.failTask{
+			background-color: #ff6666 !important;
+		}
+
+    </style>
+
+<script type="text/babel">
+	//Информация о задаче
+ 	class Task{
+ 			constructor(){
+ 				this.id;
+ 				this.name;			//Название
+ 				this.importance;	//Важность
+ 				this.date;			//Дата, когда нужно выполнить
+ 				this.time;			//Время 
+ 				this.description;	
+ 				this.complete;		//Время, когда задача выполнена
+ 			}
+ 	}
+
+ 	window.TasksInfo = [];			//Массив с элементами типа Task
+ 	window.Selected = false;		
+ 	window.noDate = false;
+ 	window.dbVersion = 1;
+
+ 	var firstSort = true;
+	var backup = [];
+	var saveCounter = 0;
+
+	//Загрузка данных из IndexedDB
+	window.onload = function(){
+		loadData(1);
+	}
+
+ 	//При выборе задания из списка
+ 	window.onclick = function(e){
+ 		if (e.target.className == 'taskSelect')
+ 			//Активировать/деактивировать кнопки меню			
+ 			selection();		
+ 	}
+
+ 	//Если выбрана бессрочная задача
+	function noDateClick(){	
+			if (!noDate)
+				noDate = true;
+			else
+				noDate = false;	
+	}
+
+ 	function additionTask(){ 
+ 		$('#editForm')[0].reset();			
+		$('#addOrEdit').html('Добавление задачи');
+		$('#addOrEdit').removeClass('editTask');
+	}
+
+	function editTask(){
+		var n = 0;
+		$('#addOrEdit').html('Редактирование задачи');
+		$('#addOrEdit').addClass('editTask');
+	
+		$.each($('.taskSelect'), function(index, value){
+					if (value.checked)
+						n = index;					
+				});
+		//Запись в поля ввода значений из массива TasksInfo
+		$('#nTaskName').val(TasksInfo[n].name);
+		$('#nTaskImp').text = TasksInfo[n].importance;
+		$('#nTaskDate').val(TasksInfo[n].date);
+		$('#nTaskTime').val(TasksInfo[n].time);
+		$('#nTaskDesc').val(TasksInfo[n].description);	
+	}
+
+		
+	
+	function saveTask(){
+		//проверка полей формы
+		if ($('#nTaskName').val().length 	== 0 	|| 
+			$('#nTaskImp').text 			== ''	||
+			$('#nTaskDesc').val().length 	== 0	||
+			($('#nTaskDate').val().length 	== 0	||	$('#nTaskTime').val().length == 0) && (!noDate)){
+				alert('Не все поля заполнены!');
+				return false;
+			}
+	
+		saveCounter++;
+
+		var tmp = new Task(); 
+		tmp.id 				= 	(TasksInfo.length + saveCounter); 
+		tmp.name 			= 	$('#nTaskName').val();
+		tmp.importance 		= 	$('#nTaskImp').val();
+		if (!noDate){
+			tmp.date 		= 	$('#nTaskDate').val();
+			tmp.time 		= 	$('#nTaskTime').val();
+		}
+		else{
+			tmp.date 		= 	'_';
+			tmp.time 		= 	'_';
+		}
+		tmp.description 	= 	$('#nTaskDesc').val();
+		tmp.complete 		= 	'_';
+
+		
+		//Если происходит добавление задачи
+		if ($('#addOrEdit').hasClass('editTask') == false)
+			TasksInfo.push(tmp);
+		//Если редактирование
+		else{
+			$.each($('.taskSelect'),function(index, value){
+						if (value.checked)
+							TasksInfo[index] = tmp;						
+					});
+		}	
+		//Закрыть окно
+		$('#closeAddWin').trigger('click');	
+	}	
+
+	//Активировать/деактивировать кнопки меню
+	function selection(){
+		var n = 0;
+		//Подсчет выделенных заданий
+		$.each($('.taskSelect'), function(index, value){		
+					if (value.checked)
+						n++;					
+				});
+		//Кнопка "Выделить всё"
+		if ($('.taskSelect').length == 0)
+			$("#selectAllButton").prop("disabled", true)
+		else
+			$("#selectAllButton").prop("disabled", false)
+
+		switch(n){
+			case 0:{
+				//Кнопка "Готово"
+				$("#doneButton").prop("disabled", true);
+				//Кнопка "Редактировать"
+				$("#editButton").prop("disabled", true);
+				//Кнопка "Удалить"
+				$("#deleteButton").prop("disabled", true);
+			}
+			break;
+			case 1:{
+				$("#doneButton").prop("disabled", false);
+				$("#editButton").prop("disabled", false);
+				$("#deleteButton").prop("disabled", false);
+			}
+			break;
+			default:{
+				$("#doneButton").prop("disabled", false);
+				$("#editButton").prop("disabled", true);
+				$("#deleteButton").prop("disabled", false);
+			}
+		}
+
+		//Поля для ввода времени и даты
+		$("#nTaskDate").prop("disabled", noDate);
+		$("#nTaskTime").prop("disabled", noDate);
+		$('#noTime').prop("checked", noDate);
+	}	
+
+
+	//Если задание выполнено
+	function doneTask(){
+		$.each($('.taskSelect'), function(index, value){
+				function addZero(t){
+					if (t < 10)
+						t ='0' + t;
+					return t;
+				}
+
+				if (value.checked){								
+					$($('.accordion-group')[index]).toggleClass('successTask'); 					
+					value.checked = '';	
+
+					var d = new Date(); 							
+					var date = d.getDate();
+					var month = d.getMonth() + 1;
+					var year = d.getFullYear();
+					var hours = d.getHours();
+					var min = d.getMinutes();
+
+					//Фиксация времени и даты выполнения
+					if ( $($('.accordion-group')[index]).hasClass('successTask') != false)
+						TasksInfo[index].complete = addZero(hours) + '-' + addZero(min) + ' _ ' + year + '-' + addZero(month) + '-' + addZero(date);	
+					else
+						TasksInfo[index].complete = '_';
+				}
+		});
+		if (Selected)
+			selectAllTasks();
+	}
+
+	//Удаление задания из массива
+	function deleteTask(){
+		var i = 0;
+		$.each($('.taskSelect'), function(index, value){
+						if (value.checked){		
+							var buf = TasksInfo[index];
+							TasksInfo[index] = TasksInfo[TasksInfo.length - 1];
+							TasksInfo[TasksInfo.length - 1] = buf;	
+							TasksInfo.length -= 1;		
+						}
+		});
+		$('#closeConWin').trigger('click');
+	}
+
+
+	function selectAllTasks(){
+		if (Selected){
+			Selected = false;
+			$.each($('.taskSelect'),function(index, value){value.checked = ''}); 
+			$('#selectAllButton').html('Выделить всё')
+		}
+		else{
+			Selected = true;
+			$.each($('.taskSelect'),function(index, value){value.checked = 'true'}); 
+			$('#selectAllButton').html('Снять выделение')
+		}			
+	}
+
+	
+	//Здесь проверяется, просрочены ли задачи 
+	function taskChecking(){
+		for (var i = 0; i < TasksInfo.length; i++){
+			var taskD = TasksInfo[i].date;
+			var taskT = TasksInfo[i].time;
+			var taskC = TasksInfo[i].complete;
+
+			//Если задача была выполнена добавить соответствующий класс
+			if (taskC != '_')
+				$($('.accordion-group')[i]).addClass('successTask');
+			//Иначе проверить, не просрочена ли она
+			if ( (taskC == '_') && (taskD != '_') ){
+				var currTime = (+new Date());
+				var t = new Date();
+				var h = taskT.split(':')[0];
+				var m = taskT.split(':')[1];
+				var dd = taskD.split('-')[2]; 
+				var taskTime = new Date(taskD).getTime(); 
+
+				if (currTime > taskTime && dd > t.getDate())
+					//Если просрочеа дата
+					$($('.accordion-group')[i]).addClass('failTask');
+				else
+					if (dd == t.getDate()){	
+						if ( h < t.getHours())	
+							$($('.accordion-group')[i]).addClass('failTask')
+
+						else					
+							if (m <= t.getMinutes())
+								$($('.accordion-group')[i]).addClass('failTask');
+					}
+			}
+		}
+	}
+
+
+	//Фильтр важности
+	function handleClick(e){
+		var sortType = e.target.id;
+		var allElems = [];				//Выбраны все задачи
+		var midElems = [];				//Выбраны обычные задачи
+		var highElems = [];				//Выбраны важные задачи
+		var maxElems = [];				//Выбраны очень задачи
+
+		//Создание копии главного массива
+		if (firstSort){
+			firstSort = false;
+			backup = TasksInfo;
+		}
+
+		switch(sortType){
+			case 'all': {
+				TasksInfo = backup;
+			}
+			break;
+			case 'middle': {
+				//Наполнение выбранного массива 
+				for (var i = 0; i < backup.length; i++)
+					if (backup[i].importance == 'Обычная')
+						midElems.push(backup[i]);
+					TasksInfo = midElems;
+			}
+			break;
+			case 'high': {
+				for (var i = 0; i < backup.length; i++)
+					if (backup[i].importance == 'Высокая')
+						highElems.push(backup[i])
+					TasksInfo = highElems;
+			}
+			break;
+			case 'maximum': {
+				for (var i = 0; i < backup.length; i++)
+					if (backup[i].importance == 'Очень высокая')
+						maxElems.push(backup[i]);
+					TasksInfo = maxElems;
+			}
+			break;
+
+		}
+
+	}
+
+	
+	//Сохранение изменений
+	function saveUpdates(){
+
+		var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB || window.shimIndexedDB;
+		var open = indexedDB.open("Tasks", dbVersion);
+
+		open.onerror = function(e){
+			console.log('Ошибка при сохранении в БД!');
+		}
+
+		open.onupgradeneeded = function(){
+		    var db = open.result;
+		    var store = db.createObjectStore("myTasks", {keyPath: "id"});
+		    var index = store.createIndex("details", ["name", "importance", "date", "time", "description", "complete"]);
+		};
+		 
+		open.onsuccess = function(){ 
+		    var db = open.result;
+		    var tx = db.transaction("myTasks", "readwrite");
+		    var store = tx.objectStore("myTasks");
+		    var index = store.index("details");
+
+  			var cl = store.clear();
+
+		    if (TasksInfo.length != 0)
+			    for (var i = 0; i < TasksInfo.length; i++)
+			    	store.put( {id: i, 
+			    				name: TasksInfo[i].name, 
+			    				importance: TasksInfo[i].importance, 
+			    				date: TasksInfo[i].date, 
+			    				time: TasksInfo[i].time, 
+			    				description: TasksInfo[i].description, 
+			    				complete: TasksInfo[i].complete
+			    			});
+			
+			tx.oncomplete = function(){			 
+			    db.close();
+			    alert('Изменения сохранены!')
+			};
+	   	}
+	}
+
+	//Загрузка данныех из БД
+	function loadData(version){
+
+		var TasksCount = 0;
+		var GetInfo = [];
+
+		var indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB || window.shimIndexedDB;
+
+		var open = indexedDB.open("Tasks", version);
+
+		open.onerror = function(e){
+			console.log('Ошибка при загрузке БД');
+			version++;
+			loadData(version);
+		}
+
+		open.onupgradeneeded = function(){
+		    var db = open.result;
+		    var store = db.createObjectStore("myTasks", {keyPath: "id"});
+		    var index = store.createIndex("details", ["name", "importance", "date", "time", "description", "complete"]);
+		};
+		 
+		open.onsuccess = function() {
+		 	dbVersion = version;
+		    var db = open.result;
+		    var tx = db.transaction("myTasks", "readwrite");
+		    var store = tx.objectStore("myTasks");
+		    var index = store.index("details");	
+			
+			var myIndex = store.index('details'); 
+	  		var countRequest = myIndex.count();
+	  	
+	  		countRequest.onsuccess = function(){
+	  			TasksCount = countRequest.result; 
+	  			if (TasksCount != 0)
+		    		for (var i = 0; i < TasksCount; i++) 			
+						GetInfo[i] = store.get(i);	
+	    	}
+	
+			tx.oncomplete = function(){	
+				console.log(GetInfo.length);
+				if (TasksCount != 0){	
+				    for (var i = 0; i < GetInfo.length; i++){
+				    	var tmp = new Task();
+				    	tmp.id = GetInfo[i].result.id;
+		    			tmp.name = GetInfo[i].result.name;
+		    			tmp.importance = GetInfo[i].result.importance;
+		    			tmp.time = GetInfo[i].result.time;
+		    			tmp.date = GetInfo[i].result.date;
+		    			tmp.description = GetInfo[i].result.description;
+		    			tmp.complete = GetInfo[i].result.complete;
+
+		    			TasksInfo.push(tmp);
+		    		}    
+	    		}	
+			    db.close();
+			}
+	   	}
+	}
+
+
+	//Компонент "Список задач"
+	var App = React.createClass({
+	  	render: function(){
+	  		return (
+			  	<div className="accordion" id="tasks">	
+			  		<div key="10">
+						<div className="row"> 
+				    		<div className="col-sm-1">
+				    			<span>Выбор</span>	  
+				    		</div>  
+				    		<div className="col-sm-2">										  
+						    	<span>Название</span>																							
+							</div>										
+							<div className="col-sm-3" >
+								<span>Важность</span>
+							</div>
+							<div className="col-sm-3">
+								<span>Срок завершения</span>
+							</div>
+							<div className="col-sm-3">
+								<span>Дата выполнения</span>													
+							</div>
+						</div>
+					</div>
+
+			  		{
+			  			///////
+
+	  					TasksInfo.map(function(el){
+	  						return (	  			
+							  	<div className="accordion-group" key={el.id}>
+							    	<div className="accordion-heading row"> 
+							    		<div className="col-sm-1">
+							    			<input type="checkbox" className="taskSelect" />	  
+							    		</div>  
+							    		<div className="col-sm-2">										  
+									    	<a className="accordion-toggle taskName" data-toggle="collapse" data-parent="#tasks" href={'#' + el.name}>
+									       		{el.name}
+									    	</a>																							
+										</div>										
+										<div className="col-sm-3" >
+											<span className="taskImportance">{el.importance}</span>
+										</div>
+										<div className="col-sm-3">
+											<span className="taskBegin">{el.time + ' _ ' + el.date}</span>
+										</div>
+										<div className="col-sm-3">
+											<span className="taskComplete">{el.complete}</span>													
+										</div>
+							    	</div>
+								    <div id={el.name} className="accordion-body collapse">
+								    	<div className="accordion-inner">{el.description}</div>
+								    </div>
+								</div>
+							)
+						})
+					}
+
+				</div>
+			)
+		}
+
+	});
+
+	//Компонент "Панель инструментов"
+	var Tool = React.createClass({
+		render: function(){
+			return(
+					<div id="features" className="col-sm-12" key="1000">					    			    		
+					<div className="btn-group">					    		
+		    			<button type="button" className="btn btnBlue" onClick={selectAllTasks} id="selectAllButton">Выделить всё</button>	    	
+		    			<button type="button" className="btn btnBlue" onClick={doneTask}  id="doneButton">Готово</button>					    					   		
+		    			<button type="button" className="btn btnBlue" onClick={editTask} data-toggle="modal" data-target="#addTask" id="editButton">Редактировать</button>					    			
+		    			<button type="button" className="btn btnBlue" id="deleteButton" disabled="true" data-toggle="modal" data-target="#confirmWindow">
+		    				Удалить
+		    			</button>					    			
+		    			<button type="button" className="btn btnBlue" data-toggle="modal" data-target="#addTask" id="addButton" onClick={additionTask}>Добавить задачу</button>
+		    			<button type="button" className="btn btnBlue" id="saveButton" onClick={saveUpdates}>Сохранить изменения</button>
+		    		</div>				    	
+	    		</div>
+			);
+		}
+	});
+
+	//Компонент "окно редактирования"
+	var Edit = React.createClass({
+	  	render: function(){
+	  		return(
+	  			<div id="addTask" className="modal fade" key="1001">			
+					<div className="modal-dialog">
+						<div className="modal-content">
+							<div className="modal-header">
+								<button className="close" type="button" data-dismiss="modal">×</button>
+								<h4 className="modal-title editTask" id="addOrEdit">Редактирование задачи</h4>
+							</div>
+							<div className="modal-body">
+								     <form id="editForm">
+										  <div className="form-group">
+											    <label htmlFor="nTaskName">Название:</label>
+											    <input type="text" className="form-control" id="nTaskName" />
+										  </div>
+										  <div className="form-group">
+											    <label htmlFor="nTaskImp">Важность</label>
+											    <select className="form-control" id="nTaskImp">
+											    	<option>Обычная</option>
+											  		<option>Высокая</option>
+											  		<option>Очень высокая</option>	
+											    </select>
+										  </div>
+										  <div className="form-group">
+											    <label htmlFor="nTaskDate">Дата выполнения:</label>
+											    <input type="date" className="form-control" id="nTaskDate" />
+										  </div>
+										  <div className="form-group">
+											    <label htmlFor="nTaskTime">Время выполнения:</label>
+											    <input type="time" className="form-control" id="nTaskTime" />
+										  </div>
+										  
+										  <div className="checkbox">
+										   	 <label>
+										   	 	<input type="checkbox" onClick={noDateClick} id="noTime" />Бессрочно
+										   	 </label>
+										  </div>
+										  <div className="form-group">
+											    <label htmlFor="nTaskDesc">Описание:</label>
+											    <textarea className="form-control" id="nTaskDesc"></textarea>
+										  </div>	  
+									</form>											
+							</div>
+							<div className="modal-footer"> 
+								<button type="button" className="btn" onClick={saveTask} >Сохранить</button>
+								<button className="btn btn-default" type="button" data-dismiss="modal" id="closeAddWin">Отмена</button>
+							</div>
+						</div>
+					</div>
+				</div>
+	  		);
+	  	}
+	});
+
+	//Компонент "Окно подтверждения удаления"
+	var Confirm = React.createClass({
+		render: function(){
+			return(			
+				<div id="confirmWindow" className="modal fade" key="1002">			
+					<div className="modal-dialog">
+						<div className="modal-content">
+							<div className="modal-header">
+								<button className="close" type="button" data-dismiss="modal">×</button>
+								<h4 className="modal-title">Вы действительно хотите удалить задание?</h4>
+							</div>
+							
+							<div className="modal-footer"> 
+								<button type="button" className="btn btn-danger" onClick={deleteTask}>Удалить</button>
+								<button className="btn btn-default" type="button" id="closeConWin" data-dismiss="modal">Отмена</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		}
+	});
+
+	//Компонент "Фильтры"
+	var Filters = React.createClass({
+		render: function(){
+			return(
+				<div>
+					<h3>Важность задач</h3>
+						<div className="btn-group" data-toggle="buttons-radio">
+						  <button type="button" className="btn btn-primary active" onClick={handleClick} id="all">Любая</button>
+						  <button type="button" className="btn btn-primary" onClick={handleClick} id="middle">Обычная</button>
+						  <button type="button" className="btn btn-primary" onClick={handleClick} id="high">Высокая</button>
+						  <button type="button" className="btn btn-primary" onClick={handleClick} id="maximum">Очень высокая</button>
+						</div>
+
+				</div>
+			);
+		}
+	});
+
+	function rend(){
+		ReactDOM.render(
+			<div>	
+				<Tool />		
+		  		<br />
+		  		<App />
+		  		<Edit /> 
+		  		<Confirm /> 		  			
+		  	</div>, document.getElementById('main')	 	
+		);
+		selection();
+		taskChecking();
+	}
+
+	ReactDOM.render(
+			<Filters />, document.getElementById('filters')		 	
+	);
+
+setInterval(rend, 500)
+
+</script>
+
+</head>
+
+
+<body>
+	<div class="row">
+	    <div class="col-sm-3">
+	    	<div class="row" id="filters"></div>
+	    </div>
+
+	    <div class="col-sm-9" >			    	
+	    	<div id="main"></div>
+		</div>
+	</div>	
+	
+</body>
+
+</html>
+
